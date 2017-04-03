@@ -1,0 +1,214 @@
+package minesweeper;
+
+import java.awt.List;
+import java.util.ArrayList;
+
+public class MineGame {
+
+	private Field feld;
+	private int flagcount;
+	private final Difficulty difficulty;
+	private static ArrayList<Tile> aufgedeckt = new ArrayList<Tile>();
+
+	/*
+	 * Bin mir noch nicht sicher, ob und wenn ja, wie ich eine Schwierigkeit
+	 * USERDEFINED umsetze, da ja irgendwo eine Eingabe geschehen muss
+	 * 
+	 * Vermutlich mit zwei Konstruktoren. Einmal public MineGame(Difficulty d)
+	 * und einmal public MineGame(int width, int heigth, int minecount)
+	 */
+	public MineGame(Difficulty d) {
+		this.difficulty = d;
+
+		if (d == Difficulty.EASY) {
+			feld = new Field(9, 9, 10);
+			this.flagcount = 10;
+		} else if (d == Difficulty.MEDIUM) {
+			feld = new Field(16, 16, 40);
+			this.flagcount = 40;
+		} else {
+			feld = new Field(30, 16, 99);
+			this.flagcount = 99;
+		}
+	}
+
+	public MineGame(int width, int height, int mines) {
+		this.difficulty = Difficulty.USERDEFINED;
+		feld = new Field(width, height, mines);
+		this.flagcount = mines;
+	}
+
+	/*-
+	 * Flagge setzen; 
+	 * Ich darf ja eigentlich nicht mit den Tiles selber arbeiten, oder? 
+	 * Vielleicht brauche ich eine Liste, in der alle Tiles, die
+	 * flagged sind, gespeichert werden.
+	 * 
+	 * 
+	 * Problem ist, dass ja auch ein null Feld markiert werden kann..
+	 * Bei Rechtsklick auf null-Feld neue Tile erstellen, die sich wie null-Tile verhält
+	 * Ist aber vmtl sehr unschöne Lösung.
+	 */
+
+	public void mark(int x, int y) {
+		if (x < 0 || y < 0 || x >= feld.getWidth() || y >= feld.getWidth()) {
+			throw new IllegalArgumentException();
+		}
+
+		if (feld.getTile(x, y) == null) {
+			feld.setTile(x, y);
+		}
+		if (feld.getTile(x, y).flagged()) {
+			feld.getTile(x, y).setFlag(false);
+			flagcount++;
+		} else {
+			feld.getTile(x, y).setFlag(true);
+			flagcount--;
+		}
+	}
+
+	/*-
+	 * Aufdecken;
+	 * 
+	 *  Stand 10.06.2016 18:30 Uhr:
+	 *  
+	 *  Falls aufzudeckendes Feld leer ist funktioniert die Methode wie gedacht
+	 *  (rekursiv alle anliegenden nullfelder aufdecken und die felder mit minesnearby, 
+	 *  die an nullfelder angrenzen)
+	 *  
+	 *  Falls aufzudeckendes Feld allerdings minesnearby hat, gibt's noch probleme
+	 *  Da werden dann auch umliegende Felder mit minesnearby aufgedeckt.
+	 *  Wie schaffe ich es, dass falls das erste angeklickte Feld kein nullfeld ist
+	 *  die rekursion quasi garnicht begonnen wird?
+	 *  
+	 *  
+	 */
+
+	public void initialUncover(int x, int y) {
+		if (x < 0 || y < 0 || x >= feld.getWidth() || y >= feld.getWidth()) {
+			throw new IllegalArgumentException();
+		}
+
+		if (feld.getTile(x, y) != null && feld.getTile(x, y).mined()) {
+			System.out.println("Leider verloren!");
+			return;
+		}
+		if (feld.getTile(x, y) == null) {
+			feld.setTile(x, y);
+		}
+		if (feld.getTile(x, y).flagged()) {
+			return;
+		}
+
+		if (feld.getTile(x, y).getMinesNearby() != 0) {
+			aufgedeckt.add(feld.getTile(x, y));
+		} else {
+			uncover(x, y);
+		}
+
+	}
+
+	private void uncover(int x, int y) {
+		if (x < 0 || y < 0 || x >= feld.getWidth() || y >= feld.getWidth()) {
+			throw new IllegalArgumentException();
+		}
+
+		if (feld.getTile(x, y) != null && feld.getTile(x, y).mined()) {
+			System.out.println("Leider verloren!");
+			return;
+		}
+		if (feld.getTile(x, y) == null) {
+			feld.setTile(x, y);
+			// feld.getSpielfeld()[y][x] = new Tile(x, y, false);
+		}
+		aufgedeckt.add(feld.getTile(x, y));
+		// feld.getTile(x+j, y+i).setUncoverStatus();
+
+		for (int i = -1; i <= 1; i++) {
+			for (int j = -1; j <= 1; j++) {
+				if ((x + j) < 0 || (y + i) < 0 || (x + j) >= feld.getWidth() || (y + i) >= feld.getHeight()) {
+					continue;
+				} else {
+
+					/*- Hier muss noch mit rein, was passiert wenn minesnearby ==
+					* 0, da ja mark() bisher bei einer markierung auch eine
+					* neue Tile erstellt.
+					* 
+					* || feld.getTile(x+j, y+i).getMinesNearby() ==0
+					* gibt momentan noch einen stackoverflow
+					*/
+
+					if (feld.getTile(x + j, y + i) == null) {
+						// feld.getSpielfeld()[y + i][x + j] = new Tile((x + j),
+						// (y + i), false);
+						feld.setTile(x + j, y + i);
+						uncover((x + j), (y + i));
+					} else if (feld.getTile(x + j, y + i).flagged() || feld.getTile(x + j, y + i).mined()) {
+						continue;
+					} else if (i == 0 && j == 0) {
+						continue;
+					} else if (feld.getTile(x + j, y + i).getMinesNearby() != 0) {
+						if (!aufgedeckt.contains(feld.getTile(x + j, y + i))) {
+							aufgedeckt.add(feld.getTile(x + j, y + i));
+						}
+
+						/*- if(!feld.getTile(x+j, y+i).getUncoverStatus()){
+							 feld.getTile(x+j, y+i).setUncoverStatus();
+						 }
+						*/
+					}
+				}
+			}
+		}
+	}
+
+	public static void main(String[] args) {
+		Difficulty test = Difficulty.EASY;
+		// Difficulty test = Difficulty.MEDIUM;
+		// MineGame testgame = new MineGame(test);
+		MineGame testgame = new MineGame(4, 4, 1);
+
+		Field testfeld = testgame.feld;
+
+		for (int i = 0; i < testfeld.getWidth(); i++) {
+			for (int j = 0; j < testfeld.getHeight(); j++) {
+				if (testfeld.getTile(j, i) == null) {
+					System.out.print(" _ ");
+				} else {
+					testfeld.getTile(j, i).printTile();
+				}
+
+			}
+			System.out.println();
+		}
+		testgame.mark(0, 1);
+		testgame.mark(1, 0);
+		testgame.mark(2, 0);
+		testgame.mark(3, 0);
+
+		testgame.initialUncover(0, 0);
+		
+		System.out.println("Markiert sind: 1,0 ; 2,0 ; 3,0; 0,1");
+
+		System.out.println("Aufgedeckte Tiles:");
+		for (Tile t : aufgedeckt) {
+			t.printTile();
+		}
+		System.out.println();
+		System.out.println("Anzahl: " + aufgedeckt.size());
+
+		testgame.mark(1, 0);
+		testgame.mark(2, 0);
+		testgame.mark(3, 0);
+
+		testgame.initialUncover(1, 0);
+
+		System.out.println("Aufgedeckte Tiles:");
+		for (Tile t : aufgedeckt) {
+			t.printTile();
+		}
+		System.out.println();
+		System.out.println("Anzahl: " + aufgedeckt.size());
+	}
+
+}
